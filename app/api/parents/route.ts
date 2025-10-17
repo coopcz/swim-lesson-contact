@@ -114,6 +114,142 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+
+    // Verify user is authenticated
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user's org
+    const { data: orgMember } = await supabase
+      .from('org_members')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!orgMember) {
+      return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+    }
+
+    const { parent_name, email, phone, children, originalParentKey } = await request.json()
+
+    // Validate
+    if (!parent_name || !parent_name.trim()) {
+      return NextResponse.json({ error: 'Parent name is required' }, { status: 400 })
+    }
+
+    if (!children || children.length === 0) {
+      return NextResponse.json({ error: 'At least one child is required' }, { status: 400 })
+    }
+
+    // Validate email if provided
+    if (email && email.trim() && !isValidEmail(email.trim())) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+    }
+
+    // Normalize phone if provided
+    const normalizedPhone = phone && phone.trim() ? normalizePhone(phone.trim()) : null
+
+    // Process each child
+    for (const child of children) {
+      if (!child.child_name || !child.child_name.trim()) {
+        return NextResponse.json({ error: 'Child name is required' }, { status: 400 })
+      }
+
+      if (!child.class_id) {
+        return NextResponse.json({ error: 'Class is required for each child' }, { status: 400 })
+      }
+
+      // Verify class exists and belongs to org
+      const { data: lesson } = await supabase
+        .from('lessons')
+        .select('id')
+        .eq('id', child.class_id)
+        .eq('org_id', orgMember.org_id)
+        .single()
+
+      if (!lesson) {
+        return NextResponse.json({ error: `Invalid class for child ${child.child_name}` }, { status: 400 })
+      }
+
+      if (child.id) {
+        // Update existing client
+        const { error: updateError } = await supabase
+          .from('clients')
+          .update({
+            parent_name: parent_name.trim(),
+            child_name: child.child_name.trim(),
+            email: email && email.trim() ? email.trim() : null,
+            phone: normalizedPhone,
+          })
+          .eq('id', child.id)
+          .eq('org_id', orgMember.org_id)
+
+        if (updateError) {
+          console.error('Error updating client:', updateError)
+          return NextResponse.json({ error: 'Failed to update client' }, { status: 500 })
+        }
+
+        // Update enrollment if class changed
+        const { error: enrollmentError } = await supabase
+          .from('enrollments')
+          .update({ lesson_id: child.class_id })
+          .eq('client_id', child.id)
+
+        if (enrollmentError) {
+          console.error('Error updating enrollment:', enrollmentError)
+          return NextResponse.json({ error: 'Failed to update enrollment' }, { status: 500 })
+        }
+      } else {
+        // Create new client
+        const { data: newClient, error: clientError } = await supabase
+          .from('clients')
+          .insert({
+            org_id: orgMember.org_id,
+            parent_name: parent_name.trim(),
+            child_name: child.child_name.trim(),
+            email: email && email.trim() ? email.trim() : null,
+            phone: normalizedPhone,
+          })
+          .select()
+          .single()
+
+        if (clientError) {
+          console.error('Error creating client:', clientError)
+          return NextResponse.json({ error: 'Failed to create client' }, { status: 500 })
+        }
+
+        // Create enrollment
+        const { error: enrollmentError } = await supabase
+          .from('enrollments')
+          .insert({
+            lesson_id: child.class_id,
+            client_id: newClient.id,
+            status: 'active',
+          })
+
+        if (enrollmentError) {
+          console.error('Error creating enrollment:', enrollmentError)
+          await supabase.from('clients').delete().eq('id', newClient.id)
+          return NextResponse.json({ error: 'Failed to create enrollment' }, { status: 500 })
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('PUT /api/parents error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()

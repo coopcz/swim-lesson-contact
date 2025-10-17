@@ -71,7 +71,7 @@ export default async function BatchDetailPage({ params }: PageProps) {
             href="/batches"
             className="text-lifequest-orange hover:underline mb-4 inline-block"
           >
-            ← Back to Batches
+            ← Back to Sent Messages
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Batch Details</h1>
           <p className="mt-2 text-gray-600">

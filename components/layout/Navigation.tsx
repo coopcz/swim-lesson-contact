@@ -16,9 +16,8 @@ const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/' },
   { name: 'Parents', href: '/parents' },
   { name: 'Classes', href: '/classes' },
-  { name: 'Lessons', href: '/lessons' },
   { name: 'Compose', href: '/compose' },
-  { name: 'Batches', href: '/batches' },
+  { name: 'Sent Messages', href: '/batches' },
   { name: 'Settings', href: '/settings' },
 ]
 

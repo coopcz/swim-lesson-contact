@@ -32,12 +32,17 @@ export default function ParentsPage() {
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedParents, setSelectedParents] = useState<Set<number>>(new Set())
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [editingParent, setEditingParent] = useState<ParentGroup | null>(null)
   const [formData, setFormData] = useState({
     parent_name: '',
     email: '',
     phone: '',
-    children: [{ child_name: '', class_id: '' }],
+    children: [{ id: '', child_name: '', class_id: '' }],
   })
   const [submitting, setSubmitting] = useState(false)
 
@@ -119,25 +124,42 @@ export default function ParentsPage() {
       parent_name: '',
       email: '',
       phone: '',
-      children: [{ child_name: '', class_id: '' }],
+      children: [{ id: '', child_name: '', class_id: '' }],
     })
     setShowAddModal(true)
   }
 
+  const handleOpenEditModal = (parent: ParentGroup) => {
+    setEditingParent(parent)
+    setFormData({
+      parent_name: parent.parent_name,
+      email: parent.email || '',
+      phone: parent.phone || '',
+      children: parent.children.map(child => ({
+        id: child.id,
+        child_name: child.child_name,
+        class_id: child.class_id,
+      })),
+    })
+    setShowEditModal(true)
+  }
+
   const handleCloseModal = () => {
     setShowAddModal(false)
+    setShowEditModal(false)
+    setEditingParent(null)
     setFormData({
       parent_name: '',
       email: '',
       phone: '',
-      children: [{ child_name: '', class_id: '' }],
+      children: [{ id: '', child_name: '', class_id: '' }],
     })
   }
 
   const handleAddChild = () => {
     setFormData({
       ...formData,
-      children: [...formData.children, { child_name: '', class_id: '' }],
+      children: [...formData.children, { id: '', child_name: '', class_id: '' }],
     })
   }
 
@@ -176,21 +198,21 @@ export default function ParentsPage() {
       }
 
       const response = await fetch('/api/parents', {
-        method: 'POST',
+        method: showEditModal ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to add parent')
+        throw new Error(error.error || `Failed to ${showEditModal ? 'update' : 'add'} parent`)
       }
 
       await loadData()
       handleCloseModal()
-      alert('Parent and children added successfully!')
+      alert(`Parent ${showEditModal ? 'updated' : 'added'} successfully!`)
     } catch (error: any) {
-      alert(error.message || 'Failed to add parent')
+      alert(error.message || `Failed to ${showEditModal ? 'update' : 'add'} parent`)
     } finally {
       setSubmitting(false)
     }
@@ -225,6 +247,58 @@ export default function ParentsPage() {
     }
   }
 
+  const handleSelectParent = (index: number) => {
+    const newSelected = new Set(selectedParents)
+    if (newSelected.has(index)) {
+      newSelected.delete(index)
+    } else {
+      newSelected.add(index)
+    }
+    setSelectedParents(newSelected)
+  }
+
+  const handleSelectAll = () => {
+    if (selectedParents.size === filteredParents.length) {
+      setSelectedParents(new Set())
+    } else {
+      setSelectedParents(new Set(filteredParents.map((_, idx) => idx)))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      alert('Please type DELETE to confirm')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const parentsToDelete = Array.from(selectedParents).map(idx => filteredParents[idx])
+      const allClientIds = parentsToDelete.flatMap(parent => parent.children.map(c => c.id))
+
+      const response = await fetch('/api/parents', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientIds: allClientIds }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete parents')
+      }
+
+      await loadData()
+      setSelectedParents(new Set())
+      setShowBulkDeleteModal(false)
+      setDeleteConfirmText('')
+      alert(`Successfully deleted ${parentsToDelete.length} parent(s)!`)
+    } catch (error: any) {
+      alert(error.message || 'Failed to delete parents')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const filteredParents = parents.filter(parent =>
     parent.parent_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     parent.children.some(child => child.child_name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -242,12 +316,22 @@ export default function ParentsPage() {
               Add and organize parent and student information
             </p>
           </div>
-          <button
-            onClick={handleOpenAddModal}
-            className="px-6 py-3 bg-lifequest-orange text-white rounded-md font-medium hover:bg-opacity-90"
-          >
-            Add Parent
-          </button>
+          <div className="flex space-x-3">
+            {selectedParents.size > 0 && (
+              <button
+                onClick={() => setShowBulkDeleteModal(true)}
+                className="px-6 py-3 bg-red-600 text-white rounded-md font-medium hover:bg-red-700"
+              >
+                Delete Selected ({selectedParents.size})
+              </button>
+            )}
+            <button
+              onClick={handleOpenAddModal}
+              className="px-6 py-3 bg-lifequest-orange text-white rounded-md font-medium hover:bg-opacity-90"
+            >
+              Add Parent
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -288,6 +372,14 @@ export default function ParentsPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-6 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedParents.size === filteredParents.length && filteredParents.length > 0}
+                      onChange={handleSelectAll}
+                      className="h-4 w-4 text-lifequest-orange focus:ring-lifequest-orange border-gray-300 rounded"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Parent Name
                   </th>
@@ -305,6 +397,14 @@ export default function ParentsPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredParents.map((parent, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedParents.has(idx)}
+                        onChange={() => handleSelectParent(idx)}
+                        className="h-4 w-4 text-lifequest-orange focus:ring-lifequest-orange border-gray-300 rounded"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {parent.parent_name}
@@ -330,8 +430,15 @@ export default function ParentsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                       <button
+                        onClick={() => handleOpenEditModal(parent)}
+                        className="text-blue-600 hover:text-blue-800 mr-4"
+                        title="Edit parent"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
                         onClick={() => handleDeleteParent(parent)}
-                        className="text-red-600 hover:text-red-800 ml-4"
+                        className="text-red-600 hover:text-red-800"
                         title="Delete parent"
                       >
                         🗑️ Delete
@@ -345,12 +452,12 @@ export default function ParentsPage() {
         )}
       </main>
 
-      {/* Add Modal */}
-      {showAddModal && (
+      {/* Add/Edit Modal */}
+      {(showAddModal || showEditModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-lg max-w-2xl w-full p-6 my-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Add Parent and Children
+              {showEditModal ? 'Edit Parent and Children' : 'Add Parent and Children'}
             </h2>
             
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -470,14 +577,66 @@ export default function ParentsPage() {
                   disabled={submitting}
                   className="px-6 py-2 bg-lifequest-orange text-white rounded-md hover:bg-opacity-90 disabled:opacity-50"
                 >
-                  {submitting ? 'Adding...' : 'Add Parent & Children'}
+                  {submitting ? 'Saving...' : showEditModal ? 'Save Changes' : 'Add Parent & Children'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="mb-4">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                <span className="text-2xl">⚠️</span>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">
+                Delete {selectedParents.size} Parent(s)?
+              </h2>
+              <p className="text-gray-600 text-center">
+                This action cannot be undone. All associated children and enrollments will be permanently deleted.
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Type <span className="font-bold text-red-600">DELETE</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Type DELETE"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowBulkDeleteModal(false)
+                  setDeleteConfirmText('')
+                }}
+                disabled={submitting}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={submitting || deleteConfirmText !== 'DELETE'}
+                className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Deleting...' : 'Delete Parents'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-

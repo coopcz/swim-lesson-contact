@@ -232,10 +232,10 @@ export default function ClassesPage() {
                 </div>
 
                 <button
-                  onClick={() => router.push(`/lessons/${cls.id}`)}
+                  onClick={() => router.push(`/classes/${cls.id}`)}
                   className="mt-4 w-full px-4 py-2 border-2 border-lifequest-orange text-lifequest-orange rounded-md font-medium hover:bg-lifequest-orange hover:text-white transition-colors"
                 >
-                  View Students
+                  View & Manage Students
                 </button>
               </div>
             ))}
