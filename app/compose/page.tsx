@@ -5,7 +5,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Navigation from '@/components/layout/Navigation'
-import { countSmsSegments, replaceTemplateVariables } from '@/lib/utils'
+import { countSmsSegments } from '@/lib/utils'
 
 interface Lesson {
   id: string
@@ -31,32 +31,35 @@ function ComposePageContent() {
   const preSelectedLesson = searchParams.get('lesson')
 
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [selectionMode, setSelectionMode] = useState<'single' | 'multiple'>('single')
   const [selectedLesson, setSelectedLesson] = useState<string>('')
+  const [selectedLessons, setSelectedLessons] = useState<Set<string>>(new Set())
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set())
   const [channel, setChannel] = useState<'email' | 'sms' | 'both'>('both')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
-  const [previewClient, setPreviewClient] = useState<Client | null>(null)
+  const [showConfirmation, setShowConfirmation] = useState(false)
 
   useEffect(() => {
     loadLessons()
     if (emergencyMode) {
       setSubject('URGENT: Pool Closure Alert')
-      setBody('Hello {{parent_name}},\n\nThis is an urgent notification regarding {{child_name}}\'s swim lesson.\n\nPlease contact us immediately for more information.\n\nThank you,\nLifeQuest Swim Team')
+      setBody('This is an urgent notification regarding swim lessons.\n\nPlease contact us immediately for more information.\n\nThank you,\nLifeQuest Swim Team')
     }
   }, [emergencyMode])
 
   useEffect(() => {
-    if (selectedLesson) {
+    if (selectionMode === 'single' && selectedLesson) {
       loadClients(selectedLesson)
+    } else if (selectionMode === 'multiple' && selectedLessons.size > 0) {
+      loadClientsFromMultipleLessons(Array.from(selectedLessons))
     } else {
       setClients([])
       setSelectedClients(new Set())
     }
-  }, [selectedLesson])
+  }, [selectedLesson, selectedLessons, selectionMode])
 
   useEffect(() => {
     if (preSelectedLesson && lessons.length > 0) {
@@ -104,11 +107,32 @@ function ComposePageContent() {
     // Auto-select all clients
     const allClientIds = new Set(clientsList.map((c: Client) => c.id))
     setSelectedClients(allClientIds)
+  }
 
-    // Set first client for preview
-    if (clientsList.length > 0) {
-      setPreviewClient(clientsList[0])
-    }
+  const loadClientsFromMultipleLessons = async (lessonIds: string[]) => {
+    const supabase = createClient()
+
+    const { data: enrollments } = await supabase
+      .from('enrollments')
+      .select('clients(*)')
+      .in('lesson_id', lessonIds)
+      .eq('status', 'active')
+
+    // Deduplicate clients (same parent may have children in multiple classes)
+    const clientsMap = new Map<string, Client>()
+    ;(enrollments || []).forEach((e: any) => {
+      const client = e.clients
+      if (client) {
+        clientsMap.set(client.id, client)
+      }
+    })
+
+    const clientsList = Array.from(clientsMap.values())
+    setClients(clientsList)
+    
+    // Auto-select all clients
+    const allClientIds = new Set(clientsList.map((c: Client) => c.id))
+    setSelectedClients(allClientIds)
   }
 
   const handleSelectAll = () => {
@@ -144,14 +168,19 @@ function ComposePageContent() {
     })
   }
 
-  const handlePreview = () => {
-    if (!previewClient) return
-    setShowPreview(true)
-  }
+  const handleShowConfirmation = () => {
+    if (selectionMode === 'single' && !selectedLesson) {
+      alert('Please select a class')
+      return
+    }
 
-  const handleSend = async () => {
-    if (!selectedLesson || selectedClients.size === 0) {
-      alert('Please select a lesson and at least one recipient')
+    if (selectionMode === 'multiple' && selectedLessons.size === 0) {
+      alert('Please select at least one class')
+      return
+    }
+
+    if (selectedClients.size === 0) {
+      alert('Please select at least one recipient')
       return
     }
 
@@ -171,20 +200,23 @@ function ComposePageContent() {
       return
     }
 
-    const confirmed = confirm(
-      `Send to ${validRecipients.length} ${validRecipients.length === 1 ? 'parent' : 'parents'} via ${channel.toUpperCase()}?`
-    )
+    setShowConfirmation(true)
+  }
 
-    if (!confirmed) return
-
+  const handleSend = async () => {
     setLoading(true)
+    setShowConfirmation(false)
 
     try {
+      const lessonIds = selectionMode === 'single' 
+        ? [selectedLesson] 
+        : Array.from(selectedLessons)
+
       const response = await fetch('/api/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lessonId: selectedLesson,
+          lessonIds,
           clientIds: Array.from(selectedClients),
           channel,
           subject,
@@ -204,6 +236,16 @@ function ComposePageContent() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleLessonCheckboxChange = (lessonId: string) => {
+    const newSelection = new Set(selectedLessons)
+    if (newSelection.has(lessonId)) {
+      newSelection.delete(lessonId)
+    } else {
+      newSelection.add(lessonId)
+    }
+    setSelectedLessons(newSelection)
   }
 
   const validRecipients = getValidRecipients()
@@ -234,20 +276,70 @@ function ComposePageContent() {
             {/* Lesson Selection */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">
-                1. Select Lesson Group
+                1. Select Class(es)
               </h2>
-              <select
-                value={selectedLesson}
-                onChange={(e) => setSelectedLesson(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-lifequest-orange focus:border-lifequest-orange"
-              >
-                <option value="">-- Select a lesson --</option>
-                {lessons.map(lesson => (
-                  <option key={lesson.id} value={lesson.id}>
-                    {lesson.name} {lesson.weekday && `(${lesson.weekday})`}
-                  </option>
-                ))}
-              </select>
+              
+              <div className="mb-4 space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="selectionMode"
+                    checked={selectionMode === 'single'}
+                    onChange={() => {
+                      setSelectionMode('single')
+                      setSelectedLessons(new Set())
+                    }}
+                    className="mr-2"
+                  />
+                  <span>Send to specific class</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="selectionMode"
+                    checked={selectionMode === 'multiple'}
+                    onChange={() => {
+                      setSelectionMode('multiple')
+                      setSelectedLesson('')
+                    }}
+                    className="mr-2"
+                  />
+                  <span>Send to multiple classes</span>
+                </label>
+              </div>
+
+              {selectionMode === 'single' ? (
+                <select
+                  value={selectedLesson}
+                  onChange={(e) => setSelectedLesson(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-lifequest-orange focus:border-lifequest-orange"
+                >
+                  <option value="">-- Select a class --</option>
+                  {lessons.map(lesson => (
+                    <option key={lesson.id} value={lesson.id}>
+                      {lesson.name} {lesson.weekday && `(${lesson.weekday})`}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3 space-y-2">
+                  {lessons.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No classes available</p>
+                  ) : (
+                    lessons.map(lesson => (
+                      <label key={lesson.id} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedLessons.has(lesson.id)}
+                          onChange={() => handleLessonCheckboxChange(lesson.id)}
+                          className="mr-2"
+                        />
+                        <span>{lesson.name} {lesson.weekday && `(${lesson.weekday})`}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Channel Selection */}
@@ -321,7 +413,7 @@ function ComposePageContent() {
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   rows={8}
-                  placeholder="Enter your message here. Use variables: {{parent_name}}, {{child_name}}, {{lesson_name}}, {{lesson_time}}"
+                  placeholder="Enter your message here"
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-lifequest-orange focus:border-lifequest-orange"
                 />
                 {(channel === 'sms' || channel === 'both') && (
@@ -330,32 +422,17 @@ function ComposePageContent() {
                   </p>
                 )}
               </div>
-
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <p className="text-sm text-blue-800">
-                  <strong>Available Variables:</strong> {'{{parent_name}}, {{child_name}}, {{lesson_name}}, {{lesson_time}}, {{date}}'}
-                </p>
-              </div>
             </div>
 
             {/* Actions */}
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex space-x-4">
-                <button
-                  onClick={handlePreview}
-                  disabled={!selectedLesson || !body || loading}
-                  className="flex-1 px-6 py-3 border-2 border-lifequest-orange text-lifequest-orange rounded-md font-medium hover:bg-lifequest-orange hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Preview
-                </button>
-                <button
-                  onClick={handleSend}
-                  disabled={!selectedLesson || selectedClients.size === 0 || !body || loading}
-                  className="flex-1 px-6 py-3 bg-lifequest-orange text-white rounded-md font-medium hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Sending...' : `Send to ${validRecipients.length} ${validRecipients.length === 1 ? 'Parent' : 'Parents'}`}
-                </button>
-              </div>
+              <button
+                onClick={handleShowConfirmation}
+                disabled={selectedClients.size === 0 || !body || loading}
+                className="w-full px-6 py-3 bg-lifequest-orange text-white rounded-md font-medium hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+              >
+                {loading ? 'Sending...' : `Send to ${validRecipients.length} ${validRecipients.length === 1 ? 'Parent' : 'Parents'}`}
+              </button>
             </div>
           </div>
 
@@ -426,53 +503,71 @@ function ComposePageContent() {
         </div>
       </main>
 
-      {/* Preview Modal */}
-      {showPreview && previewClient && (
+      {/* Confirmation Modal */}
+      {showConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Message Preview</h2>
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Confirm Send</h2>
             
-            <div className="mb-4">
-              <p className="text-sm text-gray-600">
-                Preview for: <strong>{previewClient.parent_name}</strong> ({previewClient.child_name})
-              </p>
-            </div>
-
-            {(channel === 'email' || channel === 'both') && (
-              <div className="mb-4 p-4 bg-gray-50 rounded">
-                <div className="text-sm font-medium text-gray-700 mb-2">Email Subject:</div>
-                <div className="text-gray-900">
-                  {replaceTemplateVariables(subject, {
-                    parent_name: previewClient.parent_name,
-                    child_name: previewClient.child_name,
-                    lesson_name: lessons.find(l => l.id === selectedLesson)?.name || '',
-                    lesson_time: lessons.find(l => l.id === selectedLesson)?.start_time || '',
-                    date: new Date().toLocaleDateString(),
-                  })}
+            <div className="space-y-3 mb-6">
+              <div className="p-4 bg-gray-50 rounded">
+                <div className="text-sm font-medium text-gray-700">Recipients:</div>
+                <div className="text-xl font-bold text-lifequest-orange">
+                  {validRecipients.length} {validRecipients.length === 1 ? 'Parent' : 'Parents'}
                 </div>
               </div>
-            )}
 
-            <div className="mb-6 p-4 bg-gray-50 rounded">
-              <div className="text-sm font-medium text-gray-700 mb-2">Message Body:</div>
-              <div className="text-gray-900 whitespace-pre-wrap">
-                {replaceTemplateVariables(body, {
-                  parent_name: previewClient.parent_name,
-                  child_name: previewClient.child_name,
-                  lesson_name: lessons.find(l => l.id === selectedLesson)?.name || '',
-                  lesson_time: lessons.find(l => l.id === selectedLesson)?.start_time || '',
-                  date: new Date().toLocaleDateString(),
-                })}
+              <div className="p-4 bg-gray-50 rounded">
+                <div className="text-sm font-medium text-gray-700">Channel:</div>
+                <div className="text-lg font-semibold text-gray-900">
+                  {channel === 'both' ? 'Email & SMS' : channel.toUpperCase()}
+                </div>
               </div>
+
+              {selectionMode === 'multiple' && selectedLessons.size > 0 && (
+                <div className="p-4 bg-gray-50 rounded">
+                  <div className="text-sm font-medium text-gray-700 mb-2">Classes:</div>
+                  <div className="text-sm text-gray-900 space-y-1">
+                    {Array.from(selectedLessons).map(lessonId => {
+                      const lesson = lessons.find(l => l.id === lessonId)
+                      return lesson ? (
+                        <div key={lessonId}>• {lesson.name}</div>
+                      ) : null
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {selectionMode === 'single' && selectedLesson && (
+                <div className="p-4 bg-gray-50 rounded">
+                  <div className="text-sm font-medium text-gray-700">Class:</div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {lessons.find(l => l.id === selectedLesson)?.name}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowPreview(false)}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-              >
-                Close
-              </button>
+            <div className="border-t pt-4">
+              <p className="text-sm text-gray-600 mb-4">
+                Are you sure you want to send this message?
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowConfirmation(false)}
+                  disabled={loading}
+                  className="flex-1 px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSend}
+                  disabled={loading}
+                  className="flex-1 px-6 py-2 bg-lifequest-orange text-white rounded-md hover:bg-opacity-90 disabled:opacity-50"
+                >
+                  {loading ? 'Sending...' : 'Confirm Send'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

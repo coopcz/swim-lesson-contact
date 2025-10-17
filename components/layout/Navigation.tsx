@@ -14,7 +14,8 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/' },
-  { name: 'Upload Roster', href: '/upload' },
+  { name: 'Parents', href: '/parents' },
+  { name: 'Classes', href: '/classes' },
   { name: 'Lessons', href: '/lessons' },
   { name: 'Compose', href: '/compose' },
   { name: 'Batches', href: '/batches' },

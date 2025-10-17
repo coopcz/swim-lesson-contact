@@ -83,12 +83,21 @@ export default async function HomePage() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link
-              href="/upload"
+              href="/parents"
               className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 rounded-lg hover:border-lifequest-orange hover:shadow-md transition-all"
             >
-              <div className="text-4xl mb-2">📤</div>
-              <div className="text-center font-medium text-gray-900">Upload Roster</div>
-              <div className="text-sm text-gray-500 mt-1">Import from Mindbody</div>
+              <div className="text-4xl mb-2">👥</div>
+              <div className="text-center font-medium text-gray-900">Manage Parents</div>
+              <div className="text-sm text-gray-500 mt-1">Add and edit families</div>
+            </Link>
+
+            <Link
+              href="/classes"
+              className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 rounded-lg hover:border-lifequest-orange hover:shadow-md transition-all"
+            >
+              <div className="text-4xl mb-2">🏊</div>
+              <div className="text-center font-medium text-gray-900">Manage Classes</div>
+              <div className="text-sm text-gray-500 mt-1">Schedule and organize</div>
             </Link>
 
             <Link
@@ -98,15 +107,6 @@ export default async function HomePage() {
               <div className="text-4xl mb-2">✉️</div>
               <div className="text-center font-medium text-gray-900">Send Message</div>
               <div className="text-sm text-gray-500 mt-1">Email or SMS blast</div>
-            </Link>
-
-            <Link
-              href="/lessons"
-              className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 rounded-lg hover:border-lifequest-orange hover:shadow-md transition-all"
-            >
-              <div className="text-4xl mb-2">🏊</div>
-              <div className="text-center font-medium text-gray-900">View Lessons</div>
-              <div className="text-sm text-gray-500 mt-1">See all groups</div>
             </Link>
 
             <Link
@@ -129,7 +129,7 @@ export default async function HomePage() {
                 1
               </span>
               <div>
-                <strong>Upload your roster:</strong> Export a CSV from Mindbody and upload it to import parent contacts and lesson groups.
+                <strong>Create your classes:</strong> Set up your swim lesson classes with names, days, and times.
               </div>
             </li>
             <li className="flex items-start">
@@ -137,7 +137,7 @@ export default async function HomePage() {
                 2
               </span>
               <div>
-                <strong>Compose a message:</strong> Select a lesson group, choose email/SMS, and write your message with template variables.
+                <strong>Add parent information:</strong> Manually input parent contact info and assign their children to classes.
               </div>
             </li>
             <li className="flex items-start">
@@ -145,7 +145,7 @@ export default async function HomePage() {
                 3
               </span>
               <div>
-                <strong>Preview and send:</strong> Test your message, then send it to all parents in the selected group.
+                <strong>Send messages:</strong> Compose custom messages and send to specific classes or all parents via email or SMS.
               </div>
             </li>
             <li className="flex items-start">

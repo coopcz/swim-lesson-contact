@@ -39,18 +39,44 @@ export default async function LessonsPage() {
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Swim Lessons</h1>
-            <p className="mt-2 text-gray-600">
-              View all lesson groups and their enrolled parents
-            </p>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Swim Lessons</h1>
+          <p className="mt-2 text-gray-600">
+            View all lesson groups and their enrolled students
+          </p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link
-            href="/upload"
-            className="px-6 py-3 bg-lifequest-orange text-white rounded-md font-medium hover:bg-opacity-90"
+            href="/classes"
+            className="flex items-center justify-center p-6 bg-white border-2 border-gray-200 rounded-lg hover:border-lifequest-orange hover:shadow-md transition-all"
           >
-            Upload Roster
+            <div className="text-center">
+              <div className="text-4xl mb-2">🏊</div>
+              <div className="font-medium text-gray-900">Manage Classes</div>
+              <div className="text-sm text-gray-500 mt-1">Add or edit classes</div>
+            </div>
+          </Link>
+          <Link
+            href="/parents"
+            className="flex items-center justify-center p-6 bg-white border-2 border-gray-200 rounded-lg hover:border-lifequest-orange hover:shadow-md transition-all"
+          >
+            <div className="text-center">
+              <div className="text-4xl mb-2">👥</div>
+              <div className="font-medium text-gray-900">Manage Parents</div>
+              <div className="text-sm text-gray-500 mt-1">Add or edit families</div>
+            </div>
+          </Link>
+          <Link
+            href="/compose"
+            className="flex items-center justify-center p-6 bg-white border-2 border-gray-200 rounded-lg hover:border-lifequest-orange hover:shadow-md transition-all"
+          >
+            <div className="text-center">
+              <div className="text-4xl mb-2">✉️</div>
+              <div className="font-medium text-gray-900">Send Message</div>
+              <div className="text-sm text-gray-500 mt-1">Email or SMS</div>
+            </div>
           </Link>
         </div>
 
@@ -58,16 +84,16 @@ export default async function LessonsPage() {
           <div className="bg-white rounded-lg shadow p-12 text-center">
             <div className="text-6xl mb-4">🏊</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              No Lessons Yet
+              No Classes Yet
             </h2>
             <p className="text-gray-600 mb-6">
-              Upload a roster CSV to import your swim lesson groups
+              Create your first swim lesson class to get started
             </p>
             <Link
-              href="/upload"
+              href="/classes"
               className="inline-block px-6 py-3 bg-lifequest-orange text-white rounded-md font-medium hover:bg-opacity-90"
             >
-              Upload Roster
+              Add New Class
             </Link>
           </div>
         ) : (

@@ -134,23 +134,6 @@ export default async function SettingsPage() {
             </div>
           </div>
         </div>
-
-        {/* Setup Instructions */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-bold text-blue-900 mb-2">🔧 Setup Required</h3>
-          <p className="text-sm text-blue-800 mb-3">
-            To enable SMS and email functionality, you need to configure the following services:
-          </p>
-          <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
-            <li>Sign up for <strong>Twilio</strong> (twilio.com) for SMS messaging</li>
-            <li>Sign up for <strong>Resend</strong> (resend.com) for email delivery</li>
-            <li>Add your API keys to Vercel environment variables</li>
-            <li>Deploy the Supabase Edge Functions for message dispatching</li>
-          </ol>
-          <p className="text-sm text-blue-800 mt-3">
-            See the README.md file for detailed setup instructions.
-          </p>
-        </div>
       </main>
     </div>
   )

@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No organization found' }, { status: 404 })
     }
 
-    const { lessonId, clientIds, channel, subject, body } = await request.json()
+    const { lessonIds, clientIds, channel, subject, body } = await request.json()
 
-    if (!lessonId || !clientIds || clientIds.length === 0 || !channel || !body) {
+    if (!lessonIds || lessonIds.length === 0 || !clientIds || clientIds.length === 0 || !channel || !body) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create message batch
+    // Store lesson_id only if single lesson, otherwise null
     const { data: batch, error: batchError } = await supabase
       .from('message_batches')
       .insert({
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
         channel,
         subject: subject || null,
         body,
-        lesson_id: lessonId,
+        lesson_id: lessonIds.length === 1 ? lessonIds[0] : null,
         created_by: user.id,
         status: 'pending',
       })

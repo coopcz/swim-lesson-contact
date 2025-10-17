@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { Twilio } from 'twilio'
 import { Resend } from 'resend'
-import { replaceTemplateVariables } from '@/lib/utils'
 
 // Initialize Twilio and Resend clients
 const twilioClient = new Twilio(
@@ -62,40 +61,9 @@ export async function GET(request: NextRequest) {
         const batch = msg.batch
         const client = msg.client
 
-        // Get lesson details for template variables
-        let lessonName = ''
-        let lessonTime = ''
-
-        if (batch.lesson_id) {
-          const { data: lesson } = await supabase
-            .from('lessons')
-            .select('name, start_time')
-            .eq('id', batch.lesson_id)
-            .single()
-
-          if (lesson) {
-            lessonName = lesson.name
-            lessonTime = lesson.start_time || ''
-          }
-        }
-
-        // Prepare template variables
-        const variables = {
-          parent_name: client.parent_name,
-          child_name: client.child_name,
-          lesson_name: lessonName,
-          lesson_time: lessonTime,
-          date: new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          }),
-        }
-
-        // Replace variables in subject and body
-        const subject = batch.subject ? replaceTemplateVariables(batch.subject, variables) : ''
-        const body = replaceTemplateVariables(batch.body, variables)
+        // Use subject and body as-is without any variable replacement
+        const subject = batch.subject || ''
+        const body = batch.body
 
         // Send based on channel
         if (msg.channel === 'email' && msg.dest_email) {
