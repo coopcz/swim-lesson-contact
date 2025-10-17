@@ -194,15 +194,29 @@ export async function PUT(request: NextRequest) {
           return NextResponse.json({ error: 'Failed to update client' }, { status: 500 })
         }
 
-        // Update enrollment if class changed
-        const { error: enrollmentError } = await supabase
+        // Delete existing enrollments for this client
+        const { error: deleteEnrollmentError } = await supabase
           .from('enrollments')
-          .update({ lesson_id: child.class_id })
+          .delete()
           .eq('client_id', child.id)
 
+        if (deleteEnrollmentError) {
+          console.error('Error deleting enrollment:', deleteEnrollmentError)
+          return NextResponse.json({ error: 'Failed to delete enrollment' }, { status: 500 })
+        }
+
+        // Create new enrollment with the correct class
+        const { error: enrollmentError } = await supabase
+          .from('enrollments')
+          .insert({
+            lesson_id: child.class_id,
+            client_id: child.id,
+            status: 'active',
+          })
+
         if (enrollmentError) {
-          console.error('Error updating enrollment:', enrollmentError)
-          return NextResponse.json({ error: 'Failed to update enrollment' }, { status: 500 })
+          console.error('Error creating enrollment:', enrollmentError)
+          return NextResponse.json({ error: 'Failed to create enrollment' }, { status: 500 })
         }
       } else {
         // Create new client
